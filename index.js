@@ -10,6 +10,12 @@ console.log('Mensaje recibido:', req.body);
 res.sendStatus(200);
 });
 
+app.post('/webhook', (req, res) => {
+  console.log('🧠 Entró a /webhook');
+  console.log('📦 Body:', req.body);
+  res.sendStatus(200);
+});
+
 app.get('/', (req, res) => {
 res.send('¡Sábilo está despierto!');
 });
