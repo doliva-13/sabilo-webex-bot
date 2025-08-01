@@ -14,6 +14,10 @@ app.get('/', (req, res) => {
 res.send('¡Sábilo está despierto!');
 });
 
+app.get('/ping', (req, res) => {
+  res.send('pong');
+});
+
 app.listen(PORT, () => {
 console.log(`Servidor corriendo en puerto ${PORT}`);
 });
