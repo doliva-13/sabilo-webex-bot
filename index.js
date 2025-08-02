@@ -12,8 +12,10 @@ app.post('/webhook', async (req, res) => {
   
   // Procesar el mensaje recibido
   const { data } = req.body;
+  console.log('🔍 Data extraída:', data);
   
   if (data && data.personId && data.roomId && data.id) {
+    console.log('✅ Datos válidos encontrados');
     const messageId = data.id;
     const personId = data.personId;
     const roomId = data.roomId;
@@ -21,6 +23,7 @@ app.post('/webhook', async (req, res) => {
     console.log(`📝 Mensaje recibido ID: ${messageId} de ${personId} en ${roomId}`);
     
     try {
+      console.log('🔄 Intentando obtener contenido del mensaje...');
       // Obtener el contenido del mensaje desde la API de Webex
       const messageResponse = await fetch(`https://webexapis.com/v1/messages/${messageId}`, {
         method: 'GET',
@@ -30,6 +33,8 @@ app.post('/webhook', async (req, res) => {
         }
       });
       
+      console.log('📡 Respuesta de API recibida, status:', messageResponse.status);
+      
       if (messageResponse.ok) {
         const messageData = await messageResponse.json();
         const messageText = messageData.text || '';
@@ -38,20 +43,32 @@ app.post('/webhook', async (req, res) => {
         
         // Verificar si el mensaje es "hola"
         const message = messageText.toLowerCase().trim();
+        console.log(`🔍 Mensaje procesado: "${message}"`);
+        
         if (message === 'hola') {
           console.log('👋 Detectado saludo "hola"');
           
           // Enviar respuesta
           await sendMessage(roomId, 'Hola, soy Sábilo! ¿En qué te puedo ayudar?');
+        } else {
+          console.log('❌ Mensaje no es "hola"');
         }
       } else {
         console.error('❌ Error al obtener mensaje:', messageResponse.statusText);
+        const errorText = await messageResponse.text();
+        console.error('❌ Error details:', errorText);
       }
     } catch (error) {
       console.error('❌ Error al procesar mensaje:', error);
     }
+  } else {
+    console.log('❌ Datos inválidos o faltantes en el webhook');
+    console.log('data.personId:', data?.personId);
+    console.log('data.roomId:', data?.roomId);
+    console.log('data.id:', data?.id);
   }
   
+  console.log('🏁 Finalizando webhook');
   res.sendStatus(200);
 });
 
