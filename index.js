@@ -1,8 +1,12 @@
 const express = require('express');
 const bodyParser = require('body-parser');
 const fetch = require('node-fetch');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Inicializar Google Gemini
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 app.use(bodyParser.json());
 
@@ -50,8 +54,14 @@ app.post('/webhook', async (req, res) => {
           
           // Enviar respuesta
           await sendMessage(roomId, 'Hola, soy Sábilo! ¿En qué te puedo ayudar?');
+        } else if (messageText.trim() !== '') {
+          console.log('🤖 Procesando mensaje con Gemini...');
+          
+          // Obtener respuesta de Gemini
+          const geminiResponse = await getGeminiResponse(messageText);
+          await sendMessage(roomId, geminiResponse);
         } else {
-          console.log('❌ Mensaje no es "hola"');
+          console.log('❌ Mensaje vacío, ignorando');
         }
       } else {
         console.error('❌ Error al obtener mensaje:', messageResponse.statusText);
@@ -71,6 +81,29 @@ app.post('/webhook', async (req, res) => {
   console.log('🏁 Finalizando webhook');
   res.sendStatus(200);
 });
+
+// Función para obtener respuesta de Gemini
+async function getGeminiResponse(userMessage) {
+  try {
+    console.log('🤖 Enviando mensaje a Gemini:', userMessage);
+    
+    const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+    
+    const prompt = `Eres Sábilo, un asistente virtual amigable y útil. Responde de manera clara, concisa y amigable. 
+    
+    Mensaje del usuario: ${userMessage}`;
+    
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const text = response.text();
+    
+    console.log('🤖 Respuesta de Gemini:', text);
+    return text;
+  } catch (error) {
+    console.error('❌ Error al obtener respuesta de Gemini:', error);
+    return 'Lo siento, estoy teniendo problemas para procesar tu mensaje. ¿Podrías intentar de nuevo?';
+  }
+}
 
 // Función para enviar mensajes a Webex
 async function sendMessage(roomId, text) {
