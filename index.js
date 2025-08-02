@@ -196,10 +196,14 @@ app.post('/webhook', async (req, res) => {
 async function handleError(roomId, errorType) {
   const now = Date.now();
   
+  console.log(`🚨 Error detectado: ${errorType}`);
+  
   // Si es el primer error o han pasado más de 5 minutos desde el último
   if (botStatus.errorCount === 0 || (now - botStatus.lastErrorTime) > 5 * 60 * 1000) {
     botStatus.errorCount++;
     botStatus.lastErrorTime = now;
+    
+    console.log(`📊 Contador de errores: ${botStatus.errorCount}/3`);
     
     // Si es el primer error, enviar mensaje de mantenimiento
     if (botStatus.errorCount === 1) {
@@ -210,6 +214,7 @@ async function handleError(roomId, errorType) {
     // Si hay más de 3 errores en 5 minutos, activar modo mantenimiento
     if (botStatus.errorCount >= 3) {
       console.log('🚨 Muchos errores detectados, activando modo mantenimiento');
+      console.log(`🚨 CAUSA: ${errorType} (${botStatus.errorCount} errores en 5 minutos)`);
       botStatus.maintenanceMode = true;
       botStatus.isHealthy = false;
     }
