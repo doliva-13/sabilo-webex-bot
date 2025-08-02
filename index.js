@@ -6,26 +6,49 @@ const PORT = process.env.PORT || 3000;
 
 app.use(bodyParser.json());
 
-app.post('/webhook', (req, res) => {
+app.post('/webhook', async (req, res) => {
   console.log('🧠 Entró a /webhook');
   console.log('📦 Body:', req.body);
   
   // Procesar el mensaje recibido
   const { data } = req.body;
   
-  if (data && data.personId && data.roomId && data.text) {
-    const message = data.text.toLowerCase().trim();
+  if (data && data.personId && data.roomId && data.id) {
+    const messageId = data.id;
     const personId = data.personId;
     const roomId = data.roomId;
     
-    console.log(`📝 Mensaje recibido: "${data.text}" de ${personId} en ${roomId}`);
+    console.log(`📝 Mensaje recibido ID: ${messageId} de ${personId} en ${roomId}`);
     
-    // Verificar si el mensaje es "hola"
-    if (message === 'hola') {
-      console.log('👋 Detectado saludo "hola"');
+    try {
+      // Obtener el contenido del mensaje desde la API de Webex
+      const messageResponse = await fetch(`https://webexapis.com/v1/messages/${messageId}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${process.env.WEBEX_ACCESS_TOKEN}`,
+          'Content-Type': 'application/json'
+        }
+      });
       
-      // Enviar respuesta
-      sendMessage(roomId, 'Hola, soy Sábilo! ¿En qué te puedo ayudar?');
+      if (messageResponse.ok) {
+        const messageData = await messageResponse.json();
+        const messageText = messageData.text || '';
+        
+        console.log(`📄 Contenido del mensaje: "${messageText}"`);
+        
+        // Verificar si el mensaje es "hola"
+        const message = messageText.toLowerCase().trim();
+        if (message === 'hola') {
+          console.log('👋 Detectado saludo "hola"');
+          
+          // Enviar respuesta
+          await sendMessage(roomId, 'Hola, soy Sábilo! ¿En qué te puedo ayudar?');
+        }
+      } else {
+        console.error('❌ Error al obtener mensaje:', messageResponse.statusText);
+      }
+    } catch (error) {
+      console.error('❌ Error al procesar mensaje:', error);
     }
   }
   
