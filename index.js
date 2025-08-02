@@ -15,7 +15,8 @@ let botStatus = {
   isHealthy: true,
   errorCount: 0,
   lastErrorTime: null,
-  maintenanceMode: false
+  maintenanceMode: false,
+  maintenanceResponses: new Set() // Track de mensajes ya respondidos en mantenimiento
 };
 
 // Conectar a MongoDB
@@ -25,9 +26,7 @@ console.log('🔍 Verificando WEBEX_ACCESS_TOKEN:', process.env.WEBEX_ACCESS_TOK
 
 mongoose.connect(process.env.MONGODB_URI, {
   serverSelectionTimeoutMS: 5000,
-  socketTimeoutMS: 45000,
-  bufferCommands: false,
-  bufferMaxEntries: 0
+  socketTimeoutMS: 45000
 }).then(() => {
   console.log('✅ Conectado a MongoDB Atlas');
 }).catch(err => {
@@ -58,6 +57,14 @@ mongoose.connection.on('connected', () => {
   botStatus.maintenanceMode = false;
 });
 
+// Limpiar tracking de mensajes respondidos cada hora
+setInterval(() => {
+  if (botStatus.maintenanceResponses.size > 100) {
+    console.log('🧹 Limpiando tracking de mensajes respondidos en mantenimiento');
+    botStatus.maintenanceResponses.clear();
+  }
+}, 60 * 60 * 1000); // Cada hora
+
 app.use(bodyParser.json());
 
 app.post('/webhook', async (req, res) => {
@@ -78,10 +85,20 @@ app.post('/webhook', async (req, res) => {
     
     // Verificar si el bot está en modo mantenimiento
     if (botStatus.maintenanceMode) {
-      console.log('😴 Bot en modo mantenimiento, enviando mensaje de mantenimiento');
+      console.log('😴 Bot en modo mantenimiento, verificando si debe responder');
+      
+      // Crear un identificador único para este mensaje
+      const messageKey = `${messageId}-${personId}-${roomId}`;
+      
+      // Verificar si ya respondimos a este mensaje específico
+      if (botStatus.maintenanceResponses.has(messageKey)) {
+        console.log('🤐 Mensaje ya respondido en mantenimiento, ignorando');
+        res.sendStatus(200);
+        return;
+      }
       
       try {
-        // Obtener el contenido del mensaje para responder
+        // Obtener el contenido del mensaje para verificar si es nuevo
         const messageResponse = await fetch(`https://webexapis.com/v1/messages/${messageId}`, {
           method: 'GET',
           headers: {
@@ -96,11 +113,18 @@ app.post('/webhook', async (req, res) => {
           
           // Solo responder si el mensaje no está vacío
           if (messageText.trim() !== '') {
+            console.log('😴 Enviando mensaje de mantenimiento al usuario');
             await sendMessage(roomId, '😴 Sábilo está durmiendo y en mantenimiento, ¡comunícate más tarde!');
+            
+            // Marcar este mensaje como ya respondido
+            botStatus.maintenanceResponses.add(messageKey);
+            console.log(`📝 Marcado mensaje ${messageKey} como respondido`);
+          } else {
+            console.log('🤐 Ignorando mensaje vacío');
           }
         }
       } catch (error) {
-        console.error('❌ Error enviando mensaje de mantenimiento:', error);
+        console.error('❌ Error verificando mensaje en modo mantenimiento:', error);
       }
       
       res.sendStatus(200);
@@ -344,7 +368,8 @@ app.post('/reset', (req, res) => {
     isHealthy: true,
     errorCount: 0,
     lastErrorTime: null,
-    maintenanceMode: false
+    maintenanceMode: false,
+    maintenanceResponses: new Set()
   };
   console.log('🔄 Bot reseteado manualmente');
   res.json({ message: 'Bot reseteado', status: botStatus });
