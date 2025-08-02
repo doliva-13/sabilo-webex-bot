@@ -4,6 +4,7 @@ const fetch = require('node-fetch');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const mongoose = require('mongoose');
 const Conversation = require('./models/Conversation');
+const ConversationManager = require('./utils/conversationManager');
 const { buildPrompt, detectMessageType } = require('./prompts');
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -258,7 +259,7 @@ mongoose.connect(process.env.MONGODB_URI, {
 
 // Manejar eventos de conexión
 mongoose.connection.on('error', async (err) => {
-  console.error('❌ Error de conexión MongoDB:', err);
+  console.error('❌ Error de conexión MongoDB:', err);  
   
   // Intentar reconectar automáticamente
   const reconnected = await attemptMongoDBReconnection();
@@ -506,7 +507,7 @@ async function handleError(roomId, errorType) {
 }
 
 // Función para guardar mensaje en BD
-async function saveMessage(roomId, personId, role, content) {
+async function saveMessage(roomId, personId, role, content, messageId = null) {
   try {
     // Verificar si MongoDB está conectado
     if (mongoose.connection.readyState !== 1) {
@@ -514,14 +515,32 @@ async function saveMessage(roomId, personId, role, content) {
       return;
     }
 
-    let conversation = await Conversation.findOne({ roomId, personId }).maxTimeMS(5000);
-    
-    if (!conversation) {
-      conversation = new Conversation({ roomId, personId, messages: [] });
+    // Intentar obtener información del usuario para mejor tracking
+    let personEmail = null;
+    try {
+      const personResponse = await fetch(`https://webexapis.com/v1/people/${personId}`, {
+        headers: {
+          'Authorization': `Bearer ${process.env.WEBEX_ACCESS_TOKEN}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (personResponse.ok) {
+        const personData = await personResponse.json();
+        personEmail = personData.emails?.[0] || null;
+        console.log(`👤 Información del usuario obtenida: ${personData.displayName} (${personEmail})`);
+      }
+    } catch (error) {
+      console.log('⚠️ No se pudo obtener información del usuario, continuando...');
     }
+
+    const saved = await ConversationManager.saveMessage(roomId, personId, role, content, messageId, personEmail);
     
-    await conversation.addMessage(role, content);
-    console.log(`💾 Mensaje guardado: ${role} - ${content.substring(0, 50)}...`);
+    if (saved) {
+      console.log(`💾 Mensaje guardado exitosamente: ${role} - ${content.substring(0, 50)}...`);
+    } else {
+      console.error('❌ Error guardando mensaje');
+    }
   } catch (error) {
     console.error('❌ Error guardando mensaje:', error.message);
     // No lanzar error para no interrumpir el flujo
@@ -537,11 +556,33 @@ async function getConversationHistory(roomId, personId) {
       return '';
     }
 
-    const conversation = await Conversation.findOne({ roomId, personId }).maxTimeMS(5000);
-    if (conversation && conversation.messages.length > 0) {
-      return conversation.getFormattedHistory();
+    // Intentar obtener información del usuario para mejor búsqueda
+    let personEmail = null;
+    try {
+      const personResponse = await fetch(`https://webexapis.com/v1/people/${personId}`, {
+        headers: {
+          'Authorization': `Bearer ${process.env.WEBEX_ACCESS_TOKEN}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (personResponse.ok) {
+        const personData = await personResponse.json();
+        personEmail = personData.emails?.[0] || null;
+      }
+    } catch (error) {
+      console.log('⚠️ No se pudo obtener información del usuario para búsqueda de historial');
     }
-    return '';
+
+    const history = await ConversationManager.getConversationHistory(roomId, personId, personEmail);
+    
+    if (history) {
+      console.log(`📚 Historial recuperado: ${history.split('\n').length} líneas`);
+    } else {
+      console.log('📚 Sin historial previo');
+    }
+    
+    return history;
   } catch (error) {
     console.error('❌ Error obteniendo historial:', error.message);
     return '';
@@ -776,6 +817,51 @@ app.get('/mongodb-atlas-setup', (req, res) => {
     ],
     note: 'Las credenciales son necesarias para agregar IPs automáticamente'
   });
+});
+
+// Endpoint para ver estadísticas de conversación
+app.get('/conversation-stats/:roomId/:personId', async (req, res) => {
+  try {
+    const { roomId, personId } = req.params;
+    
+    const stats = await ConversationManager.getConversationStats(roomId, personId);
+    const conversations = await ConversationManager.findUserConversations(personId);
+    
+    res.json({
+      roomId,
+      personId,
+      stats: stats,
+      recentConversations: conversations.map(conv => ({
+        id: conv._id,
+        roomId: conv.roomId,
+        messageCount: conv.messageCount,
+        lastUpdated: conv.lastUpdated,
+        isActive: conv.isActive
+      })),
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('❌ Error obteniendo estadísticas:', error);
+    res.status(500).json({ error: 'Error obteniendo estadísticas' });
+  }
+});
+
+// Endpoint para limpiar conversaciones antiguas
+app.post('/cleanup-conversations', async (req, res) => {
+  try {
+    const { daysToKeep = 7 } = req.body;
+    const cleanedCount = await ConversationManager.cleanupOldConversations(daysToKeep);
+    
+    res.json({
+      message: `Limpiadas ${cleanedCount} conversaciones antiguas`,
+      daysToKeep,
+      cleanedCount,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('❌ Error limpiando conversaciones:', error);
+    res.status(500).json({ error: 'Error limpiando conversaciones' });
+  }
 });
 
 app.listen(PORT, () => {
