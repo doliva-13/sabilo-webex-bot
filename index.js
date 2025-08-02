@@ -21,10 +21,7 @@ let botStatus = {
 // Conectar a MongoDB
 console.log('🔍 Verificando MONGODB_URI:', process.env.MONGODB_URI ? '✅ Definida' : '❌ No definida');
 
-mongoose.connect(process.env.MONGODB_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true
-}).then(() => {
+mongoose.connect(process.env.MONGODB_URI).then(() => {
   console.log('✅ Conectado a MongoDB Atlas');
 }).catch(err => {
   console.error('❌ Error conectando a MongoDB:', err);
