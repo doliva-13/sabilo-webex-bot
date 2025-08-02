@@ -21,12 +21,33 @@ let botStatus = {
 // Conectar a MongoDB
 console.log('🔍 Verificando MONGODB_URI:', process.env.MONGODB_URI ? '✅ Definida' : '❌ No definida');
 
-mongoose.connect(process.env.MONGODB_URI).then(() => {
+mongoose.connect(process.env.MONGODB_URI, {
+  serverSelectionTimeoutMS: 5000,
+  socketTimeoutMS: 45000,
+  bufferCommands: false,
+  bufferMaxEntries: 0
+}).then(() => {
   console.log('✅ Conectado a MongoDB Atlas');
 }).catch(err => {
   console.error('❌ Error conectando a MongoDB:', err);
   botStatus.isHealthy = false;
   botStatus.maintenanceMode = true;
+});
+
+// Manejar eventos de conexión
+mongoose.connection.on('error', (err) => {
+  console.error('❌ Error de conexión MongoDB:', err);
+  botStatus.isHealthy = false;
+});
+
+mongoose.connection.on('disconnected', () => {
+  console.log('⚠️ MongoDB desconectado');
+  botStatus.isHealthy = false;
+});
+
+mongoose.connection.on('connected', () => {
+  console.log('✅ MongoDB reconectado');
+  botStatus.isHealthy = true;
 });
 
 app.use(bodyParser.json());
@@ -80,30 +101,41 @@ app.post('/webhook', async (req, res) => {
         if (message === 'hola') {
           console.log('👋 Detectado saludo "hola"');
           
-          // Guardar mensaje en BD
-          await saveMessage(roomId, personId, 'user', messageText);
-          
           const response = 'Hola, soy Sábilo! ¿En qué te puedo ayudar?';
-          await saveMessage(roomId, personId, 'assistant', response);
           
-          // Enviar respuesta
+          // Enviar respuesta inmediatamente
           await sendMessage(roomId, response);
+          
+          // Guardar en paralelo (no esperar)
+          saveMessage(roomId, personId, 'user', messageText).catch(err => 
+            console.error('❌ Error guardando mensaje usuario:', err.message)
+          );
+          saveMessage(roomId, personId, 'assistant', response).catch(err => 
+            console.error('❌ Error guardando respuesta asistente:', err.message)
+          );
+          
         } else if (messageText.trim() !== '') {
           console.log('🤖 Procesando mensaje con Gemini...');
           
-          // Guardar mensaje del usuario
-          await saveMessage(roomId, personId, 'user', messageText);
+          // Guardar mensaje del usuario en paralelo
+          saveMessage(roomId, personId, 'user', messageText).catch(err => 
+            console.error('❌ Error guardando mensaje usuario:', err.message)
+          );
           
-          // Obtener historial de conversación
+          // Obtener historial de conversación (esto sí necesitamos esperar)
           const conversation = await getConversationHistory(roomId, personId);
           
           // Obtener respuesta de Gemini con contexto
           const geminiResponse = await getGeminiResponse(messageText, conversation);
           
-          // Guardar respuesta del asistente
-          await saveMessage(roomId, personId, 'assistant', geminiResponse);
-          
+          // Enviar respuesta inmediatamente
           await sendMessage(roomId, geminiResponse);
+          
+          // Guardar respuesta del asistente en paralelo
+          saveMessage(roomId, personId, 'assistant', geminiResponse).catch(err => 
+            console.error('❌ Error guardando respuesta asistente:', err.message)
+          );
+          
         } else {
           console.log('❌ Mensaje vacío, ignorando');
         }
@@ -157,7 +189,13 @@ async function handleError(roomId, errorType) {
 // Función para guardar mensaje en BD
 async function saveMessage(roomId, personId, role, content) {
   try {
-    let conversation = await Conversation.findOne({ roomId, personId });
+    // Verificar si MongoDB está conectado
+    if (mongoose.connection.readyState !== 1) {
+      console.log('⚠️ MongoDB no está conectado, saltando guardado');
+      return;
+    }
+
+    let conversation = await Conversation.findOne({ roomId, personId }).maxTimeMS(5000);
     
     if (!conversation) {
       conversation = new Conversation({ roomId, personId, messages: [] });
@@ -166,20 +204,27 @@ async function saveMessage(roomId, personId, role, content) {
     await conversation.addMessage(role, content);
     console.log(`💾 Mensaje guardado: ${role} - ${content.substring(0, 50)}...`);
   } catch (error) {
-    console.error('❌ Error guardando mensaje:', error);
+    console.error('❌ Error guardando mensaje:', error.message);
+    // No lanzar error para no interrumpir el flujo
   }
 }
 
 // Función para obtener historial de conversación
 async function getConversationHistory(roomId, personId) {
   try {
-    const conversation = await Conversation.findOne({ roomId, personId });
+    // Verificar si MongoDB está conectado
+    if (mongoose.connection.readyState !== 1) {
+      console.log('⚠️ MongoDB no está conectado, sin historial');
+      return '';
+    }
+
+    const conversation = await Conversation.findOne({ roomId, personId }).maxTimeMS(5000);
     if (conversation && conversation.messages.length > 0) {
       return conversation.getFormattedHistory();
     }
     return '';
   } catch (error) {
-    console.error('❌ Error obteniendo historial:', error);
+    console.error('❌ Error obteniendo historial:', error.message);
     return '';
   }
 }
