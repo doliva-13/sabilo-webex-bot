@@ -172,13 +172,45 @@ async function checkAndUpdateIP() {
       console.log(`🔄 IP cambió: ${botStatus.currentIP} → ${currentIP}`);
       botStatus.currentIP = currentIP;
       
-      // Actualizar en MongoDB Atlas
-      await updateMongoDBIP(currentIP);
+      // Solo actualizar en MongoDB Atlas si la conexión falla
+      // No validar IP automáticamente si ya está conectado
+      if (mongoose.connection.readyState !== 1) {
+        console.log('⚠️ MongoDB no está conectado, verificando IP...');
+        await updateMongoDBIP(currentIP);
+      } else {
+        console.log('✅ MongoDB está conectado, no es necesario verificar IP');
+      }
     } else if (currentIP) {
       console.log(`✅ IP sin cambios: ${currentIP}`);
     }
     
     botStatus.lastIPCheck = now;
+  }
+}
+
+// Función para intentar reconectar MongoDB y validar IP si es necesario
+async function attemptMongoDBReconnection() {
+  try {
+    console.log('🔄 Intentando reconectar a MongoDB...');
+    
+    // Intentar reconectar
+    await mongoose.connect(process.env.MONGODB_URI, {
+      serverSelectionTimeoutMS: 5000,
+      socketTimeoutMS: 45000
+    });
+    
+    console.log('✅ Reconexión exitosa a MongoDB');
+    return true;
+  } catch (error) {
+    console.error('❌ Error reconectando a MongoDB:', error);
+    
+    // Si falla la conexión, verificar y agregar IP
+    if (botStatus.currentIP) {
+      console.log('⚠️ Verificando IP después de fallo de conexión...');
+      await updateMongoDBIP(botStatus.currentIP);
+    }
+    
+    return false;
   }
 }
 
@@ -200,18 +232,30 @@ mongoose.connect(process.env.MONGODB_URI, {
 });
 
 // Manejar eventos de conexión
-mongoose.connection.on('error', (err) => {
+mongoose.connection.on('error', async (err) => {
   console.error('❌ Error de conexión MongoDB:', err);
-  console.error('🚨 ACTIVANDO MODO MANTENIMIENTO por error de conexión MongoDB');
-  botStatus.isHealthy = false;
-  botStatus.maintenanceMode = true;
+  
+  // Intentar reconectar automáticamente
+  const reconnected = await attemptMongoDBReconnection();
+  
+  if (!reconnected) {
+    console.error('🚨 ACTIVANDO MODO MANTENIMIENTO por error de conexión MongoDB');
+    botStatus.isHealthy = false;
+    botStatus.maintenanceMode = true;
+  }
 });
 
-mongoose.connection.on('disconnected', () => {
+mongoose.connection.on('disconnected', async () => {
   console.log('⚠️ MongoDB desconectado');
-  console.log('🚨 ACTIVANDO MODO MANTENIMIENTO por desconexión de MongoDB');
-  botStatus.isHealthy = false;
-  botStatus.maintenanceMode = true;
+  
+  // Intentar reconectar automáticamente
+  const reconnected = await attemptMongoDBReconnection();
+  
+  if (!reconnected) {
+    console.log('🚨 ACTIVANDO MODO MANTENIMIENTO por desconexión de MongoDB');
+    botStatus.isHealthy = false;
+    botStatus.maintenanceMode = true;
+  }
 });
 
 mongoose.connection.on('connected', () => {
@@ -647,6 +691,20 @@ app.post('/check-ip', async (req, res) => {
     currentIP: botStatus.currentIP,
     isWhitelisted: isWhitelisted,
     status: isWhitelisted ? 'ready' : 'needs_whitelist',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Endpoint para forzar reconexión de MongoDB
+app.post('/reconnect-mongodb', async (req, res) => {
+  console.log('🔄 Forzando reconexión de MongoDB...');
+  
+  const reconnected = await attemptMongoDBReconnection();
+  
+  res.json({
+    message: reconnected ? 'Reconexión exitosa' : 'Reconexión fallida',
+    reconnected: reconnected,
+    mongodbStatus: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
     timestamp: new Date().toISOString()
   });
 });
