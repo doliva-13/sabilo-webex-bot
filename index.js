@@ -4,6 +4,7 @@ const fetch = require('node-fetch');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const mongoose = require('mongoose');
 const Conversation = require('./models/Conversation');
+const { buildPrompt, detectMessageType } = require('./prompts');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -554,13 +555,14 @@ async function getGeminiResponse(userMessage, conversationHistory) {
     
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
     
-    let prompt = `Eres Sábilo, un asistente virtual amigable y útil. Responde de manera clara, concisa y amigable.`;
+    // Detectar el tipo de mensaje para seleccionar el prompt apropiado
+    const messageType = detectMessageType(userMessage);
+    console.log(`🔍 Tipo de mensaje detectado: ${messageType}`);
     
-    if (conversationHistory) {
-      prompt += `\n\nConversación anterior:\n${conversationHistory}\n\nMensaje actual del usuario: ${userMessage}`;
-    } else {
-      prompt += `\n\nMensaje del usuario: ${userMessage}`;
-    }
+    // Construir el prompt completo con contexto
+    const prompt = buildPrompt(userMessage, conversationHistory, messageType);
+    
+    console.log('📝 Prompt construido:', prompt.substring(0, 200) + '...');
     
     const result = await model.generateContent(prompt);
     const response = await result.response;
