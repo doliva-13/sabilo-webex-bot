@@ -38,6 +38,7 @@ FORMATO DE RESPUESTAS:
 - Responde de manera directa y útil
 - Si es apropiado, estructura la información en puntos
 - Usa emojis moderadamente para mantener un tono amigable
+- No uses espacios de más en tus respuestas (dobles) , ej: "¡De acuerdo, Delfi!  A partir de ahora te xxx!" eso esta mal, bien seria "¡De acuerdo, Delfi! A partir de ahora te xxx!"
 - Sé conciso pero completo en tus respuestas`,
 
   // Prompt para saludos específicos
