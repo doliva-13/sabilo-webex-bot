@@ -6,11 +6,6 @@ const PORT = process.env.PORT || 3000;
 app.use(bodyParser.json());
 
 app.post('/webhook', (req, res) => {
-console.log('Mensaje recibido:', req.body);
-res.sendStatus(200);
-});
-
-app.post('/webhook', (req, res) => {
   console.log('🧠 Entró a /webhook');
   console.log('📦 Body:', req.body);
   res.sendStatus(200);
