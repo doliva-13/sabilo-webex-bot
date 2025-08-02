@@ -2,11 +2,23 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const fetch = require('node-fetch');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
+const mongoose = require('mongoose');
+const Conversation = require('./models/Conversation');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Inicializar Google Gemini
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+
+// Conectar a MongoDB
+mongoose.connect(process.env.MONGODB_URI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true
+}).then(() => {
+  console.log('✅ Conectado a MongoDB Atlas');
+}).catch(err => {
+  console.error('❌ Error conectando a MongoDB:', err);
+});
 
 app.use(bodyParser.json());
 
@@ -52,13 +64,29 @@ app.post('/webhook', async (req, res) => {
         if (message === 'hola') {
           console.log('👋 Detectado saludo "hola"');
           
+          // Guardar mensaje en BD
+          await saveMessage(roomId, personId, 'user', messageText);
+          
+          const response = 'Hola, soy Sábilo! ¿En qué te puedo ayudar?';
+          await saveMessage(roomId, personId, 'assistant', response);
+          
           // Enviar respuesta
-          await sendMessage(roomId, 'Hola, soy Sábilo! ¿En qué te puedo ayudar?');
+          await sendMessage(roomId, response);
         } else if (messageText.trim() !== '') {
           console.log('🤖 Procesando mensaje con Gemini...');
           
-          // Obtener respuesta de Gemini
-          const geminiResponse = await getGeminiResponse(messageText);
+          // Guardar mensaje del usuario
+          await saveMessage(roomId, personId, 'user', messageText);
+          
+          // Obtener historial de conversación
+          const conversation = await getConversationHistory(roomId, personId);
+          
+          // Obtener respuesta de Gemini con contexto
+          const geminiResponse = await getGeminiResponse(messageText, conversation);
+          
+          // Guardar respuesta del asistente
+          await saveMessage(roomId, personId, 'assistant', geminiResponse);
+          
           await sendMessage(roomId, geminiResponse);
         } else {
           console.log('❌ Mensaje vacío, ignorando');
@@ -82,16 +110,50 @@ app.post('/webhook', async (req, res) => {
   res.sendStatus(200);
 });
 
-// Función para obtener respuesta de Gemini
-async function getGeminiResponse(userMessage) {
+// Función para guardar mensaje en BD
+async function saveMessage(roomId, personId, role, content) {
+  try {
+    let conversation = await Conversation.findOne({ roomId, personId });
+    
+    if (!conversation) {
+      conversation = new Conversation({ roomId, personId, messages: [] });
+    }
+    
+    await conversation.addMessage(role, content);
+    console.log(`💾 Mensaje guardado: ${role} - ${content.substring(0, 50)}...`);
+  } catch (error) {
+    console.error('❌ Error guardando mensaje:', error);
+  }
+}
+
+// Función para obtener historial de conversación
+async function getConversationHistory(roomId, personId) {
+  try {
+    const conversation = await Conversation.findOne({ roomId, personId });
+    if (conversation && conversation.messages.length > 0) {
+      return conversation.getFormattedHistory();
+    }
+    return '';
+  } catch (error) {
+    console.error('❌ Error obteniendo historial:', error);
+    return '';
+  }
+}
+
+// Función para obtener respuesta de Gemini con contexto
+async function getGeminiResponse(userMessage, conversationHistory) {
   try {
     console.log('🤖 Enviando mensaje a Gemini:', userMessage);
     
-    const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
     
-    const prompt = `Eres Sábilo, un asistente virtual amigable y útil. Responde de manera clara, concisa y amigable. 
+    let prompt = `Eres Sábilo, un asistente virtual amigable y útil. Responde de manera clara, concisa y amigable.`;
     
-    Mensaje del usuario: ${userMessage}`;
+    if (conversationHistory) {
+      prompt += `\n\nConversación anterior:\n${conversationHistory}\n\nMensaje actual del usuario: ${userMessage}`;
+    } else {
+      prompt += `\n\nMensaje del usuario: ${userMessage}`;
+    }
     
     const result = await model.generateContent(prompt);
     const response = await result.response;
