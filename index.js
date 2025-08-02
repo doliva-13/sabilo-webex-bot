@@ -20,6 +20,8 @@ let botStatus = {
 
 // Conectar a MongoDB
 console.log('🔍 Verificando MONGODB_URI:', process.env.MONGODB_URI ? '✅ Definida' : '❌ No definida');
+console.log('🔍 Verificando GEMINI_API_KEY:', process.env.GEMINI_API_KEY ? '✅ Definida' : '❌ No definida');
+console.log('🔍 Verificando WEBEX_ACCESS_TOKEN:', process.env.WEBEX_ACCESS_TOKEN ? '✅ Definida' : '❌ No definida');
 
 mongoose.connect(process.env.MONGODB_URI, {
   serverSelectionTimeoutMS: 5000,
@@ -30,6 +32,7 @@ mongoose.connect(process.env.MONGODB_URI, {
   console.log('✅ Conectado a MongoDB Atlas');
 }).catch(err => {
   console.error('❌ Error conectando a MongoDB:', err);
+  console.error('🚨 ACTIVANDO MODO MANTENIMIENTO por error de MongoDB');
   botStatus.isHealthy = false;
   botStatus.maintenanceMode = true;
 });
@@ -37,17 +40,22 @@ mongoose.connect(process.env.MONGODB_URI, {
 // Manejar eventos de conexión
 mongoose.connection.on('error', (err) => {
   console.error('❌ Error de conexión MongoDB:', err);
+  console.error('🚨 ACTIVANDO MODO MANTENIMIENTO por error de conexión MongoDB');
   botStatus.isHealthy = false;
+  botStatus.maintenanceMode = true;
 });
 
 mongoose.connection.on('disconnected', () => {
   console.log('⚠️ MongoDB desconectado');
+  console.log('🚨 ACTIVANDO MODO MANTENIMIENTO por desconexión de MongoDB');
   botStatus.isHealthy = false;
+  botStatus.maintenanceMode = true;
 });
 
 mongoose.connection.on('connected', () => {
   console.log('✅ MongoDB reconectado');
   botStatus.isHealthy = true;
+  botStatus.maintenanceMode = false;
 });
 
 app.use(bodyParser.json());
@@ -55,13 +63,6 @@ app.use(bodyParser.json());
 app.post('/webhook', async (req, res) => {
   console.log('🧠 Entró a /webhook');
   console.log('📦 Body:', req.body);
-  
-  // Verificar si el bot está en modo mantenimiento
-  if (botStatus.maintenanceMode) {
-    console.log('😴 Bot en modo mantenimiento, ignorando mensajes');
-    res.sendStatus(200);
-    return;
-  }
   
   // Procesar el mensaje recibido
   const { data } = req.body;
@@ -74,6 +75,37 @@ app.post('/webhook', async (req, res) => {
     const roomId = data.roomId;
     
     console.log(`📝 Mensaje recibido ID: ${messageId} de ${personId} en ${roomId}`);
+    
+    // Verificar si el bot está en modo mantenimiento
+    if (botStatus.maintenanceMode) {
+      console.log('😴 Bot en modo mantenimiento, enviando mensaje de mantenimiento');
+      
+      try {
+        // Obtener el contenido del mensaje para responder
+        const messageResponse = await fetch(`https://webexapis.com/v1/messages/${messageId}`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${process.env.WEBEX_ACCESS_TOKEN}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (messageResponse.ok) {
+          const messageData = await messageResponse.json();
+          const messageText = messageData.text || '';
+          
+          // Solo responder si el mensaje no está vacío
+          if (messageText.trim() !== '') {
+            await sendMessage(roomId, '😴 Sábilo está durmiendo y en mantenimiento, ¡comunícate más tarde!');
+          }
+        }
+      } catch (error) {
+        console.error('❌ Error enviando mensaje de mantenimiento:', error);
+      }
+      
+      res.sendStatus(200);
+      return;
+    }
     
     try {
       console.log('🔄 Intentando obtener contenido del mensaje...');
