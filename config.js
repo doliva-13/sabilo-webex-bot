@@ -4,22 +4,21 @@ const BOT_CONFIG = {
   organization: {
     name: "Arcor",
     description: "Organización que valora la excelencia en el servicio al cliente",
-    website: "https://tuorganizacion.com",
-    supportEmail: "soporte@tuorganizacion.com",
-    supportPhone: "+1-800-SUPPORT"
+    website: "Comunidad EPM - Hyperion",
+    supportEmail: "doliva@arcor.com"
   },
 
   // Productos y servicios específicos
   products: [
     {
-      name: "Producto A",
-      description: "Descripción del producto A",
-      features: ["Característica 1", "Característica 2", "Característica 3"]
+      name: "Aplicaciones EPM",
+      description: "Aplicaciones de EPM de Oracle",
+      features: ["Problemas de acceso", "Característica 2", "Característica 3"]
     },
     {
-      name: "Servicio B", 
-      description: "Descripción del servicio B",
-      features: ["Beneficio 1", "Beneficio 2", "Beneficio 3"]
+      name: "SmartView", 
+      description: "Complemento de Excel relacionado con EPM de Oracle",
+      features: ["Problemas de conexión", "Error", "Falla al refrescar"]
     }
   ],
 
@@ -33,7 +32,7 @@ const BOT_CONFIG = {
 
   // Políticas y procedimientos
   policies: {
-    escalation: "Para consultas complejas, contacta al equipo de soporte técnico",
+    escalation: "Para consultas complejas, pero si puedes obtener la información de Google, hazlo, pero si es muy puntual, contacta al equipo de soporte técnico",
     security: "Mantén la confidencialidad de la información",
     responseTime: "Respuesta en menos de 24 horas",
     availability: "Disponible 24/7 para consultas básicas"
