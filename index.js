@@ -16,8 +16,63 @@ let botStatus = {
   errorCount: 0,
   lastErrorTime: null,
   maintenanceMode: false,
-  maintenanceResponses: new Set() // Track de mensajes ya respondidos en mantenimiento
+  maintenanceResponses: new Set(), // Track de mensajes ya respondidos en mantenimiento
+  currentIP: null, // IP actual del servidor
+  lastIPCheck: 0 // Timestamp del último check de IP
 };
+
+// Función para obtener IP actual del servidor
+async function getCurrentIP() {
+  try {
+    const response = await fetch('https://api.ipify.org?format=json');
+    const data = await response.json();
+    return data.ip;
+  } catch (error) {
+    console.error('❌ Error obteniendo IP actual:', error);
+    return null;
+  }
+}
+
+// Función para actualizar IP en MongoDB Atlas
+async function updateMongoDBIP(newIP) {
+  try {
+    console.log(`🔄 Actualizando IP en MongoDB Atlas: ${newIP}`);
+    
+    // Aquí necesitarías la API key de MongoDB Atlas para actualizar la whitelist
+    // Por ahora, solo logueamos la IP para que la agregues manualmente
+    console.log(`📝 Agrega esta IP a MongoDB Atlas: ${newIP}`);
+    console.log(`📝 Ve a MongoDB Atlas → Network Access → Add IP Address → ${newIP}`);
+    
+    return true;
+  } catch (error) {
+    console.error('❌ Error actualizando IP en MongoDB:', error);
+    return false;
+  }
+}
+
+// Función para verificar y actualizar IP
+async function checkAndUpdateIP() {
+  const now = Date.now();
+  
+  // Verificar IP cada 5 minutos
+  if (now - botStatus.lastIPCheck > 5 * 60 * 1000) {
+    console.log('🔍 Verificando IP actual...');
+    
+    const currentIP = await getCurrentIP();
+    
+    if (currentIP && currentIP !== botStatus.currentIP) {
+      console.log(`🔄 IP cambió: ${botStatus.currentIP} → ${currentIP}`);
+      botStatus.currentIP = currentIP;
+      
+      // Actualizar en MongoDB Atlas
+      await updateMongoDBIP(currentIP);
+    } else if (currentIP) {
+      console.log(`✅ IP sin cambios: ${currentIP}`);
+    }
+    
+    botStatus.lastIPCheck = now;
+  }
+}
 
 // Conectar a MongoDB
 console.log('🔍 Verificando MONGODB_URI:', process.env.MONGODB_URI ? '✅ Definida' : '❌ No definida');
@@ -65,11 +120,24 @@ setInterval(() => {
   }
 }, 60 * 60 * 1000); // Cada hora
 
+// Check inicial de IP
+setTimeout(async () => {
+  console.log('🚀 Iniciando check inicial de IP...');
+  await checkAndUpdateIP();
+}, 10000); // 10 segundos después del inicio
+
 app.use(bodyParser.json());
 
 app.post('/webhook', async (req, res) => {
   console.log('🧠 Entró a /webhook');
   console.log('📦 Body:', req.body);
+  
+  // Log de IP para identificar IPs de Render
+  const clientIP = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
+  console.log('🌐 IP del cliente:', clientIP);
+  
+  // Verificar y actualizar IP automáticamente
+  await checkAndUpdateIP();
   
   // Procesar el mensaje recibido
   const { data } = req.body;
@@ -359,6 +427,75 @@ app.get('/status', (req, res) => {
     errorCount: botStatus.errorCount,
     lastErrorTime: botStatus.lastErrorTime,
     isHealthy: botStatus.isHealthy
+  });
+});
+
+// Endpoint para mostrar IP actual
+app.get('/ip', (req, res) => {
+  const clientIP = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
+  const serverIP = req.connection.localAddress;
+  const realIP = req.headers['x-real-ip'];
+  const forwardedIP = req.headers['x-forwarded-for'];
+  
+  res.json({
+    clientIP: clientIP,
+    serverIP: serverIP,
+    realIP: realIP,
+    forwardedIP: forwardedIP,
+    allIPs: {
+      'x-forwarded-for': req.headers['x-forwarded-for'],
+      'x-real-ip': req.headers['x-real-ip'],
+      'x-client-ip': req.headers['x-client-ip'],
+      'cf-connecting-ip': req.headers['cf-connecting-ip'],
+      'remote-addr': req.connection.remoteAddress
+    },
+    headers: req.headers,
+    userAgent: req.headers['user-agent'],
+    timestamp: new Date().toISOString(),
+    note: 'Agrega estas IPs a MongoDB Atlas Network Access'
+  });
+});
+
+// Endpoint para generar instrucciones de MongoDB
+app.get('/mongodb-setup', (req, res) => {
+  const clientIP = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
+  const ipParts = clientIP ? clientIP.split(',')[0].trim() : 'unknown';
+  
+  res.json({
+    instructions: [
+      '1. Ve a MongoDB Atlas Dashboard',
+      '2. Selecciona tu cluster',
+      '3. Ve a "Network Access"',
+      '4. Haz clic en "Add IP Address"',
+      '5. Agrega estas IPs:',
+      `   - ${ipParts}`,
+      '   - 0.0.0.0/0 (temporal, para desarrollo)',
+      '6. Haz clic en "Confirm"',
+      '7. Espera 1-2 minutos',
+      '8. El bot se reconectará automáticamente'
+    ],
+    currentIP: ipParts,
+    warning: 'Las IPs pueden cambiar en reinicios. Para producción, considera usar 0.0.0.0/0 temporalmente.'
+  });
+});
+
+// Endpoint para mostrar estado de IPs
+app.get('/ip-status', (req, res) => {
+  res.json({
+    currentIP: botStatus.currentIP,
+    lastIPCheck: new Date(botStatus.lastIPCheck).toISOString(),
+    nextCheck: new Date(botStatus.lastIPCheck + 5 * 60 * 1000).toISOString(),
+    instructions: botStatus.currentIP ? [
+      `1. Ve a MongoDB Atlas → Network Access`,
+      `2. Agrega esta IP: ${botStatus.currentIP}`,
+      `3. El bot detectará cambios automáticamente`,
+      `4. Revisa los logs para ver nuevas IPs`
+    ] : [
+      '1. Espera 10 segundos para el check inicial',
+      '2. Revisa los logs para ver la IP actual',
+      '3. Agrega la IP a MongoDB Atlas'
+    ],
+    note: 'El bot verifica cambios de IP cada 5 minutos automáticamente'
   });
 });
 
