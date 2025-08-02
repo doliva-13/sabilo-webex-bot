@@ -2,7 +2,7 @@
 const BOT_CONFIG = {
   // Información de la organización
   organization: {
-    name: "Tu Organización",
+    name: "Arcor",
     description: "Organización que valora la excelencia en el servicio al cliente",
     website: "https://tuorganizacion.com",
     supportEmail: "soporte@tuorganizacion.com",
