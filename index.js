@@ -18,8 +18,32 @@ let botStatus = {
   maintenanceMode: false,
   maintenanceResponses: new Set(), // Track de mensajes ya respondidos en mantenimiento
   currentIP: null, // IP actual del servidor
-  lastIPCheck: 0 // Timestamp del último check de IP
+  lastIPCheck: 0, // Timestamp del último check de IP
+  botId: null // ID del bot para evitar bucles infinitos
 };
+
+// Función para obtener el ID del bot
+async function getBotId() {
+  try {
+    console.log('🔍 Obteniendo ID del bot...');
+    const response = await fetch('https://webexapis.com/v1/people/me', {
+      headers: {
+        'Authorization': `Bearer ${process.env.WEBEX_ACCESS_TOKEN}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      botStatus.botId = data.id;
+      console.log(`✅ ID del bot obtenido: ${botStatus.botId}`);
+    } else {
+      console.error('❌ Error obteniendo ID del bot:', response.statusText);
+    }
+  } catch (error) {
+    console.error('❌ Error obteniendo ID del bot:', error);
+  }
+}
 
 // Función para obtener IP actual del servidor
 async function getCurrentIP() {
@@ -278,6 +302,12 @@ setTimeout(async () => {
   await checkAndUpdateIP();
 }, 10000); // 10 segundos después del inicio
 
+// Obtener ID del bot al inicio
+setTimeout(async () => {
+  console.log('🤖 Obteniendo ID del bot...');
+  await getBotId();
+}, 5000); // 5 segundos después del inicio
+
 app.use(bodyParser.json());
 
 app.post('/webhook', async (req, res) => {
@@ -302,6 +332,13 @@ app.post('/webhook', async (req, res) => {
     const roomId = data.roomId;
     
     console.log(`📝 Mensaje recibido ID: ${messageId} de ${personId} en ${roomId}`);
+    
+    // Verificar si el mensaje es del propio bot (ignorar para evitar bucle infinito)
+    if (personId === botStatus.botId || personId === process.env.WEBEX_BOT_ID) {
+      console.log('🤖 Mensaje del propio bot, ignorando para evitar bucle infinito');
+      res.sendStatus(200);
+      return;
+    }
     
     // Verificar si el bot está en modo mantenimiento
     if (botStatus.maintenanceMode) {
