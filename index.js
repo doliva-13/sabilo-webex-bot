@@ -10,6 +10,14 @@ const PORT = process.env.PORT || 3000;
 // Inicializar Google Gemini
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
+// Estado del bot para evitar spam de errores
+let botStatus = {
+  isHealthy: true,
+  errorCount: 0,
+  lastErrorTime: null,
+  maintenanceMode: false
+};
+
 // Conectar a MongoDB
 mongoose.connect(process.env.MONGODB_URI, {
   useNewUrlParser: true,
@@ -18,6 +26,8 @@ mongoose.connect(process.env.MONGODB_URI, {
   console.log('✅ Conectado a MongoDB Atlas');
 }).catch(err => {
   console.error('❌ Error conectando a MongoDB:', err);
+  botStatus.isHealthy = false;
+  botStatus.maintenanceMode = true;
 });
 
 app.use(bodyParser.json());
@@ -25,6 +35,13 @@ app.use(bodyParser.json());
 app.post('/webhook', async (req, res) => {
   console.log('🧠 Entró a /webhook');
   console.log('📦 Body:', req.body);
+  
+  // Verificar si el bot está en modo mantenimiento
+  if (botStatus.maintenanceMode) {
+    console.log('😴 Bot en modo mantenimiento, ignorando mensajes');
+    res.sendStatus(200);
+    return;
+  }
   
   // Procesar el mensaje recibido
   const { data } = req.body;
@@ -95,9 +112,11 @@ app.post('/webhook', async (req, res) => {
         console.error('❌ Error al obtener mensaje:', messageResponse.statusText);
         const errorText = await messageResponse.text();
         console.error('❌ Error details:', errorText);
+        await handleError(roomId, 'Error al obtener mensaje de Webex');
       }
     } catch (error) {
       console.error('❌ Error al procesar mensaje:', error);
+      await handleError(roomId, 'Error interno del servidor');
     }
   } else {
     console.log('❌ Datos inválidos o faltantes en el webhook');
@@ -109,6 +128,32 @@ app.post('/webhook', async (req, res) => {
   console.log('🏁 Finalizando webhook');
   res.sendStatus(200);
 });
+
+// Función para manejar errores y evitar spam
+async function handleError(roomId, errorType) {
+  const now = Date.now();
+  
+  // Si es el primer error o han pasado más de 5 minutos desde el último
+  if (botStatus.errorCount === 0 || (now - botStatus.lastErrorTime) > 5 * 60 * 1000) {
+    botStatus.errorCount++;
+    botStatus.lastErrorTime = now;
+    
+    // Si es el primer error, enviar mensaje de mantenimiento
+    if (botStatus.errorCount === 1) {
+      console.log('⚠️ Primer error detectado, enviando mensaje de mantenimiento');
+      await sendMessage(roomId, '😴 Sábilo está durmiendo y en mantenimiento, ¡comunícate más tarde!');
+    }
+    
+    // Si hay más de 3 errores en 5 minutos, activar modo mantenimiento
+    if (botStatus.errorCount >= 3) {
+      console.log('🚨 Muchos errores detectados, activando modo mantenimiento');
+      botStatus.maintenanceMode = true;
+      botStatus.isHealthy = false;
+    }
+  } else {
+    console.log('🤐 Error ignorado para evitar spam');
+  }
+}
 
 // Función para guardar mensaje en BD
 async function saveMessage(roomId, personId, role, content) {
@@ -163,7 +208,7 @@ async function getGeminiResponse(userMessage, conversationHistory) {
     return text;
   } catch (error) {
     console.error('❌ Error al obtener respuesta de Gemini:', error);
-    return 'Lo siento, estoy teniendo problemas para procesar tu mensaje. ¿Podrías intentar de nuevo?';
+    throw new Error('Error de Gemini');
   }
 }
 
@@ -186,9 +231,11 @@ async function sendMessage(roomId, text) {
       console.log('✅ Mensaje enviado exitosamente');
     } else {
       console.error('❌ Error al enviar mensaje:', response.statusText);
+      throw new Error('Error enviando mensaje a Webex');
     }
   } catch (error) {
     console.error('❌ Error al enviar mensaje:', error);
+    throw error;
   }
 }
 
@@ -198,6 +245,28 @@ res.send('¡Sábilo está despierto!');
 
 app.get('/ping', (req, res) => {
   res.send('pong');
+});
+
+// Endpoint para verificar estado del bot
+app.get('/status', (req, res) => {
+  res.json({
+    status: botStatus.maintenanceMode ? 'maintenance' : 'healthy',
+    errorCount: botStatus.errorCount,
+    lastErrorTime: botStatus.lastErrorTime,
+    isHealthy: botStatus.isHealthy
+  });
+});
+
+// Endpoint para resetear el bot (para debugging)
+app.post('/reset', (req, res) => {
+  botStatus = {
+    isHealthy: true,
+    errorCount: 0,
+    lastErrorTime: null,
+    maintenanceMode: false
+  };
+  console.log('🔄 Bot reseteado manualmente');
+  res.json({ message: 'Bot reseteado', status: botStatus });
 });
 
 app.listen(PORT, () => {
