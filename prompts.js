@@ -83,8 +83,8 @@ Sábilo te acompaña en cada paso 🐢✨
 Ingresar al portal web de **Gestión-Contabilidad**.  
 Seleccionar el ambiente correspondiente:
 
-- `Test`
-- `Producción`
+- Test
+- Producción
 
 ---
 
@@ -103,8 +103,8 @@ Usar el buscador (esquina superior izquierda) y escribir:  interfaz
 Esto mostrará una lista de interfaces disponibles.  
 ⚠️ La interfaz varía según el negocio:
 
-- Para **Agro**: `InterfazAGRO`
-- Para **Consumo Masivo / Packaging**: `InterfazFullPlanning`
+- Para **Agro**: InterfazAGRO
+- Para **Consumo Masivo / Packaging**: InterfazFullPlanning
 
 📷 *Visualmente verás una tabla con columnas como:*  
 - Nombre  
