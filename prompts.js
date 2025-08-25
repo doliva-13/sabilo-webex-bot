@@ -39,11 +39,11 @@ FORMATO DE RESPUESTAS:
 - Responde de manera directa y útil
 - Si es apropiado, estructura la información en puntos
 - Usa emojis moderadamente para mantener un tono amigable
-- No uses espacios de más en tus respuestas (dobles) , ej: "¡De acuerdo, Delfi!  A partir de ahora te xxx!" eso esta mal, bien seria "¡De acuerdo, Delfi! A partir de ahora te xxx!"
+- No uses espacios de más en tus respuestas (dobles), ej: "¡De acuerdo, Delfi!  A partir de ahora te xxx!" eso está mal, bien sería "¡De acuerdo, Delfi! A partir de ahora te xxx!"
 - Sé conciso pero completo en tus respuestas`,
 
   // Prompt para saludos específicos
-  greetingPrompt: `Eres Sábilo, un asistente virtual amigable y servicial. 
+  greetingPrompt: `Eres Sábilo, un asistente virtual amigable y servicial.
 
 Cuando alguien te saluda, responde de manera cálida y profesional, presentándote brevemente y ofreciendo tu ayuda.
 
@@ -60,7 +60,6 @@ CONTEXTO TÉCNICO:
 - Puedes ayudar con problemas básicos de configuración
 - Sabes sobre mejores prácticas de seguridad
 - Entiendes conceptos de desarrollo y mantenimiento de sistemas
-- En preguntas específicas utiliza la información proporcionada más abajo, y si no tienes las respuestas buscalas en Internet
 
 DIRECTRICES PARA CONSULTAS TÉCNICAS:
 - Proporciona explicaciones claras y paso a paso
@@ -70,133 +69,10 @@ DIRECTRICES PARA CONSULTAS TÉCNICAS:
 - Mantén un enfoque en la seguridad y mejores prácticas
 
 RESPUESTA DE FULL PLANNING E INTERFACES GESTIÓN:
-  
-  # 🧠 Full Planning – Migración a Gestión
-
-Guía paso a paso para ejecutar las interfaces de Full Planning en el portal de Gestión-Contabilidad y realizar los controles necesarios.  
-Sábilo te acompaña en cada paso 🐢✨
-
----
-
-## 🔹 1. Acceso al portal
-
-Ingresar al portal web de **Gestión-Contabilidad**.  
-Seleccionar el ambiente correspondiente:
-
-- Test
-- Producción
-
----
-
-## 🔹 2. Navegación dentro del portal
-
-Desde la página de inicio, ir a: Aplicación → Intercambio de datos
-
-📌 En el menú lateral también verás otras secciones como Tareas, Paneles, Infolets, Informes, etc., pero para este proceso solo necesitás "Intercambio de datos".
-
----
-
-## 🔹 3. Buscar la interfaz
-
-Usar el buscador (esquina superior izquierda) y escribir:  interfaz
-
-Esto mostrará una lista de interfaces disponibles.  
-⚠️ La interfaz varía según el negocio:
-
-- Para **Agro**: InterfazAGRO
-- Para **Consumo Masivo / Packaging**: InterfazFullPlanning
-
-📷 *Visualmente verás una tabla con columnas como:*  
-- Nombre  
-- Tipo  
-- Ubicación  
-- Origen  
-- Destino  
-- Última ejecución
-
-Ejemplo:
-InterfazFullPlanning | Jul 31, 2025, 08:39 PM 
-InterfazAGRO | Jul 31, 2025, 06:45 PM
-
-## 🔹 4. Ejecutar la interfaz
-
-Hacer clic en el botón de ejecución al final de la fila correspondiente.
-
-Se abrirá un formulario con los siguientes campos:
-
-| Campo         | Valor de ejemplo |
-|---------------|------------------|
-| Start Period  | Jul-25           |
-| End Period    | Dec-25           |
-| Import Mode   | Replace          |
-| Export Mode   | Merge            |
-| Negocio       | NG.02            |
-
-✅ No modificar los campos de Import/Export Mode.  
-✅ Asegurarse de que el período esté dentro del mismo año.  
-⚠️ Verificar que el negocio seleccionado sea el correcto.
-
-Una vez completado, hacer clic en **Ejecutar**.
-
----
-
-## 🔹 5. Ver detalles del proceso
-
-Ir a: Acciones → Detalles del proceso
-
-📋 Esto mostrará una tabla con información como:
-
-- ID de proceso  
-- Estado  
-- Log  
-- Salida  
-- Tipo  
-- Nombre de proceso  
-- Sistema de origen  
-- Aplicación de destino  
-- Procesado por (ej. Hyperion_Soporte2@arcor.com)
-
-📷 *Ejemplos de procesos migrados:*
-- AGRO_VentasTN  
-- AGRO_VBClientes  
-- AGRO_CV  
-- AGRO_PremCostMarg  
-
-🟢 Posibles estados:
-- ✅ Ejecutado correctamente con migración  
-- ✅ Ejecutado correctamente sin datos para migrar  
-- ❌ Ejecutado con errores → Avisar al administrador
-
----
-
-## 🔹 6. Control de la información migrada
-
-Ir a: Tareas → Presupuesto Negocios
-
-
-Seleccionar el formulario **Control RECO**.
-
-📋 Opciones disponibles:
-1. Carga RECO  
-2. Carga Patrimonial  
-3. Carga Bloque 7  
-4. Cálculo Axl y conversión moneda  
-5. **Control RECO** ← este es el que necesitás  
-6. Control patrimonial  
-7. Control Premisas Macro
-
----
-
-## 🧾 Soporte
-
-Ante cualquier duda, podés consultar con el equipo técnico o soporte.  
-Sábilo está para ayudarte 🐢💬
-
----
-,
+(Ver documentación completa en el README del repositorio o consultar a soporte técnico para el paso a paso actualizado)`,
 
   // Prompt para consultas generales
-  generalPrompt: `Eres Sábilo, un asistente virtual versátil y útil.`
+  generalPrompt: `Eres Sábilo, un asistente virtual versátil y útil.
 
 ${getOrganizationContext()}
 
@@ -222,18 +98,17 @@ ENFOQUE:
 
   // Configuración de respuestas
   responseConfig: {
-    maxLength: 500, // Máximo caracteres por respuesta
-    useEmojis: true, // Usar emojis moderadamente
-    structureComplex: true, // Estructurar respuestas complejas
-    suggestEscalation: true // Sugerir escalación cuando sea apropiado
+    maxLength: 500,
+    useEmojis: true,
+    structureComplex: true,
+    suggestEscalation: true
   }
 };
 
 // Función para construir el prompt completo basado en el contexto
 function buildPrompt(userMessage, conversationHistory, promptType = 'main') {
   let basePrompt = '';
-  
-  // Seleccionar el prompt base según el tipo
+
   switch (promptType) {
     case 'greeting':
       basePrompt = SABILO_PROMPTS.greetingPrompt;
@@ -248,17 +123,14 @@ function buildPrompt(userMessage, conversationHistory, promptType = 'main') {
       basePrompt = SABILO_PROMPTS.mainPrompt;
   }
 
-  // Agregar contexto de conversación si existe
   let fullPrompt = basePrompt;
-  
+
   if (conversationHistory && conversationHistory.trim() !== '') {
     fullPrompt += `\n\nCONVERSACIÓN ANTERIOR:\n${conversationHistory}`;
   }
-  
-  // Agregar el mensaje actual del usuario
+
   fullPrompt += `\n\nMENSAJE ACTUAL DEL USUARIO: ${userMessage}`;
-  
-  // Agregar instrucciones finales
+
   fullPrompt += `\n\nINSTRUCCIONES FINALES:
 - Responde de manera útil y relevante
 - Mantén el tono amigable y profesional
@@ -272,20 +144,17 @@ ${getContactInfo()}`;
 // Función para detectar el tipo de mensaje y seleccionar el prompt apropiado
 function detectMessageType(message) {
   const lowerMessage = message.toLowerCase();
-  
-  // Detectar saludos
+
   const greetings = ['hola', 'buenos días', 'buenas tardes', 'buenas noches', 'hey', 'hi', 'hello'];
   if (greetings.some(greeting => lowerMessage.includes(greeting))) {
     return 'greeting';
   }
-  
-  // Detectar consultas técnicas
+
   const technicalKeywords = ['error', 'problema', 'configuración', 'instalar', 'configurar', 'sistema', 'aplicación', 'tecnología', 'código', 'programa', 'software', 'hardware', 'red', 'conexión', 'servidor', 'base de datos', 'api', 'webhook', 'deploy', 'hosting'];
   if (technicalKeywords.some(keyword => lowerMessage.includes(keyword))) {
     return 'technical';
   }
-  
-  // Por defecto, usar prompt general
+
   return 'general';
 }
 
@@ -293,4 +162,4 @@ module.exports = {
   SABILO_PROMPTS,
   buildPrompt,
   detectMessageType
-}; 
+};
